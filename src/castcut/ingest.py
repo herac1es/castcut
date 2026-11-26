@@ -195,6 +195,8 @@ def _score_candidate(
         start=round(start, 3),
         end=round(end, 3),
         duration=round(max(0.0, end - start), 3),
+        width=media.width,
+        height=media.height,
         orientation=media.orientation,
         category=category,
         score=score,

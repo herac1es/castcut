@@ -21,11 +21,11 @@ from castcut.media import (
     transcode_for_davinci_free,
 )
 from castcut.models import (
-    AspectMode,
     ClipCategory,
     MixedOrientationPolicy,
     ResolutionTier,
     TemplateType,
+    parse_aspect_mode,
 )
 from castcut.planner import build_fine_plan, build_rough_plan
 from castcut.qc import run_qc
@@ -93,25 +93,27 @@ def doctor() -> None:
 def init(
     episode_dir: Annotated[Path, typer.Argument(help="单集工作目录路径，例如 episodes/2026-spring-bass")],
     title: Annotated[str, typer.Option("--title", "-t", help="单集标题")],
-    aspect: Annotated[AspectMode, typer.Option(help="画幅模式：auto（按素材自动判断）/ landscape / portrait")] = AspectMode.AUTO,
+    aspect: Annotated[str, typer.Option(help="画幅模式：auto / 16:9(landscape) / 3:4(portrait，对齐 coolbot)")] = "auto",
     resolution: Annotated[ResolutionTier, typer.Option(help="分辨率：1080p 或 4k")] = ResolutionTier.FHD_1080P,
-    mixed: Annotated[MixedOrientationPolicy, typer.Option(help="横竖混剪策略：blur_pillarbox / crop_fill / fit")] = MixedOrientationPolicy.BLUR_PILLARBOX,
+    mixed: Annotated[MixedOrientationPolicy, typer.Option(help="异画幅混剪策略：blur_pillarbox / crop_fill / fit")] = MixedOrientationPolicy.BLUR_PILLARBOX,
     template: Annotated[TemplateType, typer.Option(help="叙事模板：fishing-vlog / short-highlight")] = TemplateType.FISHING_VLOG,
     target_duration: Annotated[float | None, typer.Option(help="目标成片时长（秒）")] = None,
     location: Annotated[str, typer.Option(help="钓点/场景简介")] = "",
     bgm: Annotated[str | None, typer.Option(help="可选 BGM 音频路径")] = None,
+    handle: Annotated[str, typer.Option(help="频道角标（默认对齐 coolbot：@路亚知马力，置空关闭）")] = "@路亚知马力",
 ) -> None:
     """初始化一集新的路亚 Vlog 工作区。"""
     cfg = init_episode_workspace(
         episode_dir=episode_dir,
         title=title,
-        aspect=aspect,
+        aspect=parse_aspect_mode(aspect),
         resolution=resolution,
         mixed_orientation=mixed,
         template=template,
         target_duration_sec=target_duration,
         location=location,
         bgm_path=bgm,
+        channel_handle=handle,
     )
     console.print(f"[green]已初始化单集工作区[/green]: {episode_dir.resolve()}")
     console.print(f"  配置: {episode_dir / 'project.yaml'}")

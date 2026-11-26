@@ -138,6 +138,7 @@ def init_episode_workspace(
     target_duration_sec: float | None = None,
     location: str = "",
     bgm_path: str | None = None,
+    channel_handle: str = "@路亚知马力",
 ) -> ProjectConfig:
     paths = EpisodePaths(episode_dir)
     paths.ensure_dirs()
@@ -152,6 +153,7 @@ def init_episode_workspace(
         target_duration_sec=target_duration_sec if target_duration_sec is not None else default_dur,
         location=location,
         bgm_path=bgm_path,
+        channel_handle=channel_handle,
     )
     save_yaml(paths.project_yaml, cfg.model_dump(mode="json"))
     return cfg

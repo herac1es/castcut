@@ -189,23 +189,24 @@ def export_fcpxml(
             (clip_el, item.timeline_start, item.timeline_end, item.source_start, item.speed)
         )
 
-    # Attach V2 transparent HUD overlays to the spine clip covering each overlay start
+    # Attach V2 HUD cards (lane 1) and V3 persistent channel watermark (lane 2)
     for ov in plan.overlays:
         rid = overlay_asset_ids.get(ov.overlay_id)
         if not rid or not spine_elements:
             continue
         host = spine_elements[0]
-        for cand in spine_elements:
-            if cand[1] <= ov.start < cand[2]:
-                host = cand
-                break
+        if ov.kind != "watermark":
+            for cand in spine_elements:
+                if cand[1] <= ov.start < cand[2]:
+                    host = cand
+                    break
         host_el, host_tl_start, _, host_src_start, host_speed = host
         rel_offset = host_src_start + max(0.0, ov.start - host_tl_start) * host_speed
         ET.SubElement(
             host_el,
             "video",
             ref=rid,
-            lane="1",
+            lane="2" if ov.kind == "watermark" else "1",
             offset=_fmt_time(rel_offset, frame_num, frame_den),
             name=f"{ov.overlay_id}_{ov.title}",
             start="0s",

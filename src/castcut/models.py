@@ -6,13 +6,26 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AspectMode(StrEnum):
     AUTO = "auto"
-    LANDSCAPE = "landscape"
-    PORTRAIT = "portrait"
+    LANDSCAPE = "landscape"  # 16:9 (1920x1080 / 3840x2160)
+    PORTRAIT = "portrait"    # 3:4  (1080x1440 / 1620x2160), aligned with coolbot
+
+
+def parse_aspect_mode(raw: str | AspectMode) -> AspectMode:
+    if isinstance(raw, AspectMode):
+        return raw
+    norm = raw.strip().lower()
+    if norm in ("auto",):
+        return AspectMode.AUTO
+    if norm in ("landscape", "16:9", "16x9", "1920x1080"):
+        return AspectMode.LANDSCAPE
+    if norm in ("portrait", "3:4", "3x4", "1080x1440"):
+        return AspectMode.PORTRAIT
+    raise ValueError(f"不支持的画幅模式: {raw}（支持 auto | landscape/16:9 | portrait/3:4）")
 
 
 class ResolutionTier(StrEnum):
@@ -60,6 +73,7 @@ class ProjectConfig(BaseModel):
     location: str = ""
     target_species: str = "大口黑鲈"
     water_type: Literal["managed_pond", "open_water", "unknown"] = "managed_pond"
+    channel_handle: str = "@路亚知马力"
     bgm_path: str | None = None
     bgm_volume_db: float = -18.0
     bgm_duck_db: float = -30.0
@@ -67,11 +81,20 @@ class ProjectConfig(BaseModel):
     glossary_path: str | None = None
     notes: str = ""
 
+    @field_validator("aspect", mode="before")
+    @classmethod
+    def _coerce_aspect(cls, v: object) -> AspectMode:
+        if isinstance(v, (str, AspectMode)):
+            return parse_aspect_mode(v)
+        raise ValueError(f"Invalid aspect mode: {v!r}")
+
     def resolve_dimensions(self, detected_orientation: Literal["landscape", "portrait"]) -> tuple[int, int]:
         orient = detected_orientation if self.aspect == AspectMode.AUTO else self.aspect.value
         if self.resolution == ResolutionTier.UHD_4K:
-            return (3840, 2160) if orient == "landscape" else (2160, 3840)
-        return (1920, 1080) if orient == "landscape" else (1080, 1920)
+            # 3:4 at 1620x2160 stays strictly within DaVinci Resolve Free's 2160p UHD ceiling.
+            return (3840, 2160) if orient == "landscape" else (1620, 2160)
+        # Aligned with coolbot: 16:9 = 1920x1080, 3:4 = 1080x1440 (avoids top/bottom feed occlusion).
+        return (1920, 1080) if orient == "landscape" else (1080, 1440)
 
 
 class SilenceInterval(BaseModel):
@@ -162,6 +185,8 @@ class CandidateClip(BaseModel):
     start: float
     end: float
     duration: float
+    width: int = 1920
+    height: int = 1080
     orientation: Literal["landscape", "portrait", "square"]
     category: ClipCategory = ClipCategory.UNCLASSIFIED
     score: float = 0.5
@@ -188,12 +213,12 @@ class HudOverlaySpec(BaseModel):
     """Transparent PNG HUD card rendered on Track V2 and composited in previews."""
 
     overlay_id: str
-    kind: Literal["chapter", "catch_counter", "lure_info", "spot_note", "callout"]
+    kind: Literal["chapter", "catch_counter", "lure_info", "spot_note", "callout", "watermark"]
     title: str
     subtitle: str = ""
     start: float
     duration: float = 3.2
-    position: Literal["top_left", "top_right", "bottom_left", "center_banner"] = "top_left"
+    position: Literal["top_left", "top_right", "bottom_left", "bottom_right", "center_banner"] = "top_left"
     png_rel_path: str | None = None
 
 
@@ -220,6 +245,8 @@ class TimelineClipItem(BaseModel):
     speed: float = 1.0
     timeline_start: float = 0.0
     timeline_end: float = 0.0
+    source_width: int = 1920
+    source_height: int = 1080
     orientation: Literal["landscape", "portrait", "square"] = "landscape"
     framing: MixedOrientationPolicy = MixedOrientationPolicy.BLUR_PILLARBOX
     category: ClipCategory = ClipCategory.UNCLASSIFIED

@@ -10,7 +10,7 @@ from castcut.exporters.otio import export_otio
 from castcut.exporters.srt import write_srt
 from castcut.models import EditPlan, MediaFile, MediaIndex, MixedOrientationPolicy
 from castcut.overlays import materialize_overlays
-from castcut.renderer import render_adapted_mixed_clip, render_ducked_bgm_wav
+from castcut.planner import has_aspect_mismatch
 from castcut.workspace import EpisodePaths, load_edit_plan, load_media_index, save_edit_plan
 
 
@@ -22,6 +22,8 @@ def _prepare_nle_assets(
     bake_ducked_bgm: bool,
 ) -> tuple[EditPlan, MediaIndex]:
     """Return a derived export plan/index with pre-baked mixed-orientation clips & ducked BGM WAV."""
+    from castcut.renderer import render_adapted_mixed_clip, render_ducked_bgm_wav
+
     export_plan = plan.model_copy(deep=True)
     export_index = media_index.model_copy(deep=True)
     media_map = {m.media_id: m for m in export_index.files}
@@ -30,11 +32,13 @@ def _prepare_nle_assets(
         canvas_orient = "landscape" if export_plan.width >= export_plan.height else "portrait"
         adapted_dir = paths.exports_dir / "adapted"
         for item in export_plan.items:
+            media = media_map.get(item.media_id)
+            src_w = media.width if media else item.source_width
+            src_h = media.height if media else item.source_height
             if (
-                item.orientation != canvas_orient
+                has_aspect_mismatch(src_w, src_h, export_plan.width, export_plan.height)
                 and item.framing != MixedOrientationPolicy.FIT
             ):
-                media = media_map.get(item.media_id)
                 src = Path(item.source_abs_path)
                 if not src.exists():
                     src = (paths.root / item.source_rel_path).resolve()

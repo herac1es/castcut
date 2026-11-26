@@ -21,8 +21,8 @@ description: 路亚钓鱼实拍 Vlog 的全流程 Agent 剪辑技能（挑片、
    ```bash
    uv run castcut init episodes/<slug> --title "<标题>" --aspect auto --mixed blur_pillarbox --template fishing-vlog
    ```
-   - `aspect=auto` 会根据 `raw/` 素材时长自动判定横屏（16:9）或竖屏（9:16）。
-   - 如用户明确指定竖屏短视频（1–3 分钟），改用 `--aspect portrait --template short-highlight`。
+   - `aspect=auto` 会根据 `raw/` 素材时长自动判定横屏（`16:9` `1920×1080`）或竖屏（`3:4` `1080×1440`，对齐 `coolbot` 系列避开上下遮挡）。
+   - 如用户明确指定竖屏短视频（1–3 分钟），改用 `--aspect 3:4 --template short-highlight`（手机 `9:16` 素材进入 `3:4` 会自动应用 `blur_pillarbox` 或 `crop_fill`）。
 
 ---
 

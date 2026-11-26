@@ -184,7 +184,7 @@ def export_jianying_draft(
         "canvas_config": {
             "width": plan.width,
             "height": plan.height,
-            "ratio": "16:9" if plan.width >= plan.height else "9:16",
+            "ratio": "16:9" if plan.width >= plan.height else "3:4",
         },
         "materials": {
             "videos": video_materials,

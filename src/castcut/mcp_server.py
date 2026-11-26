@@ -10,11 +10,11 @@ from castcut.exporters import export_episode
 from castcut.ingest import ingest_episode
 from castcut.media import find_cjk_font, resolve_ffmpeg, resolve_ffprobe
 from castcut.models import (
-    AspectMode,
     ClipCategory,
     MixedOrientationPolicy,
     ResolutionTier,
     TemplateType,
+    parse_aspect_mode,
 )
 from castcut.planner import build_fine_plan, build_rough_plan
 from castcut.qc import run_qc
@@ -71,7 +71,7 @@ def create_server():
         cfg = init_episode_workspace(
             episode_dir=Path(episode_dir),
             title=title,
-            aspect=AspectMode(aspect),
+            aspect=parse_aspect_mode(aspect),
             resolution=ResolutionTier(resolution),
             mixed_orientation=MixedOrientationPolicy(mixed_orientation),
             template=TemplateType(template),

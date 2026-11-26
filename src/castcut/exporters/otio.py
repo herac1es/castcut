@@ -130,8 +130,9 @@ def export_otio(
         else:
             a1_children.append(_gap(item.output_duration, fps))
 
-    # Track V2: Transparent PNG HUD overlays positioned with exact Gaps
+    # Track V2: Timed HUD cards (non-overlapping with Gaps); Track V3: Persistent channel watermark
     v2_children: list[dict] = []
+    v3_children: list[dict] = []
     v2_cursor = 0.0
     for ov in sorted(plan.overlays, key=lambda o: o.start):
         if not ov.png_rel_path:
@@ -139,21 +140,23 @@ def export_otio(
         png_path = (episode_root / ov.png_rel_path).resolve()
         if not png_path.exists():
             continue
+        ov_clip = {
+            "OTIO_SCHEMA": "Clip.2",
+            "metadata": {"castcut_overlay": ov.model_dump(mode="json")},
+            "name": f"{ov.overlay_id}_{ov.title}",
+            "source_range": _tr(0.0, ov.duration, fps),
+            "media_reference": _ext_ref(png_path, ov.duration, fps),
+            "effects": [],
+            "markers": [],
+            "enabled": True,
+        }
+        if ov.kind == "watermark":
+            v3_children.append(ov_clip)
+            continue
         if ov.start > v2_cursor + (0.5 / fps):
             v2_children.append(_gap(ov.start - v2_cursor, fps))
             v2_cursor = ov.start
-        v2_children.append(
-            {
-                "OTIO_SCHEMA": "Clip.2",
-                "metadata": {"castcut_overlay": ov.model_dump(mode="json")},
-                "name": f"{ov.overlay_id}_{ov.title}",
-                "source_range": _tr(0.0, ov.duration, fps),
-                "media_reference": _ext_ref(png_path, ov.duration, fps),
-                "effects": [],
-                "markers": [],
-                "enabled": True,
-            }
-        )
+        v2_children.append(ov_clip)
         v2_cursor += ov.duration
 
     tracks: list[dict] = [
@@ -176,6 +179,19 @@ def export_otio(
                 "name": "V2 HUD Overlays",
                 "kind": "Video",
                 "children": v2_children,
+                "effects": [],
+                "markers": [],
+                "enabled": True,
+            }
+        )
+    if v3_children:
+        tracks.append(
+            {
+                "OTIO_SCHEMA": "Track.1",
+                "metadata": {},
+                "name": "V3 Channel Handle",
+                "kind": "Video",
+                "children": v3_children,
                 "effects": [],
                 "markers": [],
                 "enabled": True,

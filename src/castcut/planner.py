@@ -162,11 +162,18 @@ def _select_ordered_clips(
     return selected
 
 
+def has_aspect_mismatch(src_w: int, src_h: int, dst_w: int, dst_h: int, tol: float = 0.08) -> bool:
+    if src_w <= 0 or src_h <= 0 or dst_w <= 0 or dst_h <= 0:
+        return False
+    src_ar = src_w / src_h
+    dst_ar = dst_w / dst_h
+    return abs(src_ar - dst_ar) / dst_ar > tol
+
+
 def _resolve_framing(
-    clip_orient: str, canvas_w: int, canvas_h: int, policy: MixedOrientationPolicy
+    src_w: int, src_h: int, canvas_w: int, canvas_h: int, policy: MixedOrientationPolicy
 ) -> MixedOrientationPolicy:
-    canvas_orient = "landscape" if canvas_w >= canvas_h else "portrait"
-    if clip_orient == canvas_orient:
+    if not has_aspect_mismatch(src_w, src_h, canvas_w, canvas_h):
         return MixedOrientationPolicy.FIT
     return policy
 
@@ -273,6 +280,20 @@ def _build_overlays_for_plan(plan: EditPlan, cfg: ProjectConfig) -> list[HudOver
             )
             ov_idx += 1
 
+    # Persistent low-interference channel watermark aligned with coolbot (@路亚知马力)
+    if cfg.channel_handle.strip() and plan.total_duration > 0:
+        overlays.append(
+            HudOverlaySpec(
+                overlay_id=f"OV{ov_idx:03d}",
+                kind="watermark",
+                title=cfg.channel_handle.strip(),
+                subtitle="",
+                start=0.0,
+                duration=plan.total_duration,
+                position="bottom_right",
+            )
+        )
+
     return overlays
 
 
@@ -343,7 +364,7 @@ def build_rough_plan(
         else:
             s_start, s_end = _trim_edge_silences(clip, media)
 
-        framing = _resolve_framing(clip.orientation, width, height, cfg.mixed_orientation)
+        framing = _resolve_framing(media.width, media.height, width, height, cfg.mixed_orientation)
         marker_label = f"[{section}] {clip.clip_id}"
         if clip.keywords_hit:
             marker_label += f" ({','.join(clip.keywords_hit[:2])})"
@@ -359,6 +380,8 @@ def build_rough_plan(
                 source_start=s_start,
                 source_end=s_end,
                 speed=speed,
+                source_width=media.width,
+                source_height=media.height,
                 orientation=clip.orientation,
                 framing=framing,
                 category=clip.category,

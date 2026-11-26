@@ -302,8 +302,9 @@ def _compose_final(
     if should_burn_subs and srt_path is not None:
         escaped = _escape_ffmpeg_sub_path(srt_path)
         nxt = "v_sub"
+        # Respect coolbot subtitle safe margins (left: 48, right: 148, bottom: 48 in 1080p coordinates)
         filter_parts.append(
-            f"[{v_cur}]subtitles='{escaped}':force_style='FontSize=20,Outline=2,Shadow=1,MarginV=36'[{nxt}]"
+            f"[{v_cur}]subtitles='{escaped}':force_style='FontSize=20,Outline=2,Shadow=1,MarginL=28,MarginR=74,MarginV=28'[{nxt}]"
         )
         v_cur = nxt
 
