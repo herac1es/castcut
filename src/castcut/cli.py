@@ -271,10 +271,18 @@ def export_cmd(
     episode_dir: Annotated[Path, typer.Argument(help="单集工作目录")],
     formats: Annotated[str, typer.Option(help="逗号分隔导出格式：otio,fcpxml,srt,jianying")] = "otio,fcpxml,srt",
     stage: Annotated[str, typer.Option(help="导出基准计划：fine 或 rough")] = "fine",
+    bake_mixed: Annotated[bool, typer.Option("--bake-mixed/--raw-mixed", help="将横竖混拍片段预烘焙为高斯模糊背景片，达芬奇打开即无黑边")] = True,
+    bake_bgm: Annotated[bool, typer.Option("--bake-bgm/--raw-bgm", help="预生成已自动闪避的 bgm_ducked.wav 挂到 A2 轨")] = True,
 ) -> None:
     """导出零 VIP 工程文件（默认 OTIO + FCPXML + SRT，直接导入达芬奇免费版）。"""
     fmt_list = [f.strip() for f in formats.split(",") if f.strip()]
-    results = export_episode(episode_dir=episode_dir, formats=fmt_list, stage=stage)
+    results = export_episode(
+        episode_dir=episode_dir,
+        formats=fmt_list,
+        stage=stage,
+        bake_mixed=bake_mixed,
+        bake_ducked_bgm=bake_bgm,
+    )
     for key, path in results.items():
         console.print(f"[green]已导出 {key.upper()}[/green]: {path}")
 

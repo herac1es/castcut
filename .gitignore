@@ -13,6 +13,8 @@ episodes/*/raw/
 episodes/*/work/proxies/
 episodes/*/work/contacts/
 episodes/*/exports/*.mp4
+episodes/*/exports/*.wav
+episodes/*/exports/adapted/
 episodes/*/exports/overlays/
 episodes/*/exports/jianying_draft/
 

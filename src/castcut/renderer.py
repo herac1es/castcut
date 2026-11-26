@@ -41,6 +41,89 @@ def _db_to_linear(db: float) -> float:
     return round(math.pow(10.0, db / 20.0), 6)
 
 
+def _bgm_filter_expr(plan: EditPlan, in_label: str, out_label: str) -> str:
+    assert plan.bgm is not None
+    base_lin = _db_to_linear(plan.bgm.base_volume_db)
+    duck_lin = _db_to_linear(plan.bgm.duck_volume_db)
+    if plan.bgm.ducking_intervals:
+        cond = "+".join(
+            f"between(t,{iv.start:.3f},{iv.end:.3f})" for iv in plan.bgm.ducking_intervals
+        )
+        vol_expr = f"if(gt({cond},0),{duck_lin},{base_lin})"
+    else:
+        vol_expr = f"{base_lin}"
+
+    fade_out_start = max(0.0, plan.total_duration - plan.bgm.fade_out_sec)
+    return (
+        f"[{in_label}]atrim=0:{plan.total_duration:.3f},asetpts=PTS-STARTPTS,"
+        f"aresample=48000,aformat=channel_layouts=stereo,"
+        f"volume='{vol_expr}':eval=frame,"
+        f"afade=t=in:st=0:d={plan.bgm.fade_in_sec:.2f},"
+        f"afade=t=out:st={fade_out_start:.3f}:d={plan.bgm.fade_out_sec:.2f}[{out_label}]"
+    )
+
+
+def render_ducked_bgm_wav(plan: EditPlan, dest: Path) -> Path | None:
+    """Pre-render looped, faded, and auto-ducked BGM WAV so DaVinci Resolve A2 sounds mixed immediately."""
+    if not plan.bgm or not Path(plan.bgm.path).exists() or plan.total_duration <= 0:
+        return None
+    ffmpeg = resolve_ffmpeg().path
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    filt = _bgm_filter_expr(plan, "0:a", "bgm_a")
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-stream_loop",
+        "-1",
+        "-i",
+        plan.bgm.path,
+        "-filter_complex",
+        filt,
+        "-map",
+        "[bgm_a]",
+        "-t",
+        f"{plan.total_duration:.3f}",
+        "-c:a",
+        "pcm_s16le",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        str(dest),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Failed rendering ducked BGM WAV: {proc.stderr.strip()}")
+    return dest
+
+
+def render_adapted_mixed_clip(
+    item: TimelineClipItem,
+    source_path: Path,
+    has_audio: bool,
+    width: int,
+    height: int,
+    fps: float,
+    dest: Path,
+) -> Path:
+    """Pre-bake an orientation-mismatched clip (e.g. vertical in 16:9) with blur_pillarbox for NLE import."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    return _render_segment(
+        item=item,
+        source_path=source_path,
+        has_audio=has_audio,
+        width=width,
+        height=height,
+        fps=fps,
+        crf=17,
+        preset="fast",
+        dest=dest,
+    )
+
+
 def _video_framing_filter(
     item: TimelineClipItem,
     width: int,
@@ -226,24 +309,7 @@ def _compose_final(
 
     a_map = "0:a"
     if bgm_input_idx is not None and plan.bgm is not None:
-        base_lin = _db_to_linear(plan.bgm.base_volume_db)
-        duck_lin = _db_to_linear(plan.bgm.duck_volume_db)
-        if plan.bgm.ducking_intervals:
-            cond = "+".join(
-                f"between(t,{iv.start:.3f},{iv.end:.3f})" for iv in plan.bgm.ducking_intervals
-            )
-            vol_expr = f"if(gt({cond},0),{duck_lin},{base_lin})"
-        else:
-            vol_expr = f"{base_lin}"
-
-        fade_out_start = max(0.0, plan.total_duration - plan.bgm.fade_out_sec)
-        filter_parts.append(
-            f"[{bgm_input_idx}:a]atrim=0:{plan.total_duration:.3f},asetpts=PTS-STARTPTS,"
-            f"aresample=48000,aformat=channel_layouts=stereo,"
-            f"volume='{vol_expr}':eval=frame,"
-            f"afade=t=in:st=0:d={plan.bgm.fade_in_sec:.2f},"
-            f"afade=t=out:st={fade_out_start:.3f}:d={plan.bgm.fade_out_sec:.2f}[bgm_a]"
-        )
+        filter_parts.append(_bgm_filter_expr(plan, f"{bgm_input_idx}:a", "bgm_a"))
         filter_parts.append("[0:a][bgm_a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a_mix]")
         a_map = "[a_mix]"
 

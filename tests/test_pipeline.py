@@ -203,20 +203,27 @@ def test_full_mixed_orientation_lure_vlog_e2e(tmp_path: Path) -> None:
     exported = export_episode(ep_dir, formats=["otio", "fcpxml", "srt", "jianying"])
     assert set(exported.keys()) == {"otio", "fcpxml", "srt", "jianying"}
 
-    # Validate OTIO JSON schema structure
-    otio_data = json.loads(exported["otio"].read_text(encoding="utf-8"))
+    # Validate OTIO JSON schema structure + DaVinci-ready adapted mixed clip & ducked BGM WAV
+    otio_text = exported["otio"].read_text(encoding="utf-8")
+    otio_data = json.loads(otio_text)
     assert otio_data["OTIO_SCHEMA"] == "Timeline.1"
     track_names = [t["name"] for t in otio_data["tracks"]["children"]]
     assert "V1 Main" in track_names
     assert "V2 HUD Overlays" in track_names
     assert "A1 Dialogue & Field Audio" in track_names
     assert "A2 BGM" in track_names
+    assert (ep_dir / "exports" / "bgm_ducked.wav").exists()
+    assert "bgm_ducked.wav" in otio_text
+    assert "_adapted.mp4" in otio_text
 
     # Validate FCPXML 1.10 XML parses cleanly & contains assets + spine clips + markers
-    fcpxml_root = ET.fromstring(exported["fcpxml"].read_text(encoding="utf-8"))
+    fcpxml_text = exported["fcpxml"].read_text(encoding="utf-8")
+    fcpxml_root = ET.fromstring(fcpxml_text)
     assert fcpxml_root.tag == "fcpxml" and fcpxml_root.attrib["version"] == "1.10"
     assert len(fcpxml_root.findall(".//spine/asset-clip")) == len(fine_plan.items)
     assert len(fcpxml_root.findall(".//marker")) >= 1
+    assert "bgm_ducked.wav" in fcpxml_text
+    assert "_adapted.mp4" in fcpxml_text
 
     # Validate SRT content
     srt_text = exported["srt"].read_text(encoding="utf-8")

@@ -193,9 +193,17 @@ def create_server():
         episode_dir: str,
         formats: list[str] | None = None,
         stage: str = "fine",
+        bake_mixed: bool = True,
+        bake_ducked_bgm: bool = True,
     ) -> str:
         """Export zero-VIP NLE handoff package (otio, fcpxml, srt, optional jianying)."""
-        res = export_episode(Path(episode_dir), formats=formats or ["otio", "fcpxml", "srt"], stage=stage)
+        res = export_episode(
+            Path(episode_dir),
+            formats=formats or ["otio", "fcpxml", "srt"],
+            stage=stage,
+            bake_mixed=bake_mixed,
+            bake_ducked_bgm=bake_ducked_bgm,
+        )
         return json.dumps({k: str(v) for k, v in res.items()}, ensure_ascii=False, indent=2)
 
     @mcp.tool()
