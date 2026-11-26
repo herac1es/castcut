@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Episode raw media & heavy render outputs (keep configs & scripts clean)
+episodes/*/raw/
+episodes/*/work/proxies/
+episodes/*/work/contacts/
+episodes/*/exports/*.mp4
+episodes/*/exports/overlays/
+episodes/*/exports/jianying_draft/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
