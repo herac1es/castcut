@@ -13,6 +13,7 @@
 - **双 Agent 一等公民**：
   - 生成低码率 720p 代理片（`work/proxies/`），供 **Antigravity** 原生看视频、听现场声挑片与成片审片；
   - 生成带时间码水印的缩略图拼图（`work/contacts/`），供 **Codex** 视觉挑片与高效脚本迭代。
+- **豆包语音口播旁白（与 `coolbot` 配置同源）**：支持给风噪素材/空镜一键补配**火山引擎豆包 TTS**（Seed-TTS 2.0/1.0/ICL，默认音色 `zh_male_m191_uranus_bigtts` 云舟 2.0，直接复用 `coolbot` 的 `.env` 变量名）；内置路亚多音字纠偏（`快调/调性` vs `微调`）、字级精准字幕对齐、内容哈希防重复计费缓存，以及达芬奇独立 **A2 口播音轨**。
 - **零 VIP 专业工程导出**：
   - 主导出：`timeline.otio` + `timeline.fcpxml` + `subtitles.srt` + `overlays/*.png`（透明 V2 信息卡），直接导入 **DaVinci Resolve 免费版**（零会员费、无水印）；
   - 内置 **10-bit 预警与一键转码**（`castcut prepare-davinci`），避免 Windows 达芬奇免费版出现素材离线；
@@ -56,12 +57,14 @@ uv run castcut clips episodes/2026-spring-bass
 
 # （可选：让 Antigravity / Codex 看代理片或拼图后，用 castcut label 微调镜头分类和留弃）
 
-# 4. Stage 2 & 3 粗剪 -> 精剪 -> 渲染预览 -> 导出达芬奇工程
+# 4. Stage 2 & 3 粗剪 -> 精剪 ->（可选）豆包口播配音 -> 渲染预览 -> 导出达芬奇工程
 uv run castcut plan episodes/2026-spring-bass --stage rough
 uv run castcut render episodes/2026-spring-bass --stage rough   # 秒级看粗剪节奏
 
 uv run castcut plan episodes/2026-spring-bass --stage fine
-uv run castcut render episodes/2026-spring-bass --stage fine    # 完整预览（含混画幅/HUD/BGM闪避）
+# 若在 fine_cut.yaml 写了后期口播 voiceover_text / voiceovers，先复制 .env.example 为 .env 并填入豆包 Key：
+uv run castcut tts episodes/2026-spring-bass                    # 调用豆包 TTS 生成口播 MP3 + 字级字幕
+uv run castcut render episodes/2026-spring-bass --stage fine    # 完整预览（含混画幅/HUD/口播/BGM闪避）
 uv run castcut export episodes/2026-spring-bass --formats otio,fcpxml,srt
 
 # 5. Stage 4 自动质检（输出 qc_report.json 与验收拼图 qc_contact.jpg）

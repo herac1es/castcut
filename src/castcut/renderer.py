@@ -267,10 +267,15 @@ def _compose_final(
         for ov in plan.overlays
         if ov.png_rel_path and (episode_root / ov.png_rel_path).exists()
     ]
+    active_voiceovers = [
+        vo
+        for vo in plan.voiceovers
+        if vo.audio_rel_path and (episode_root / vo.audio_rel_path).exists()
+    ]
     has_bgm = bool(plan.bgm and Path(plan.bgm.path).exists())
     should_burn_subs = bool(burn_subtitles and srt_path and srt_path.exists() and plan.subtitles)
 
-    if not active_overlays and not has_bgm and not should_burn_subs:
+    if not active_overlays and not active_voiceovers and not has_bgm and not should_burn_subs:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(base_video, dest)
         return dest
@@ -282,6 +287,13 @@ def _compose_final(
     for ov in active_overlays:
         cmd.extend(["-i", str(episode_root / ov.png_rel_path)])
         overlay_inputs.append((input_idx, ov.start, ov.start + ov.duration))
+        input_idx += 1
+
+    vo_inputs: list[tuple[int, float, float, float, float]] = []
+    for vo in active_voiceovers:
+        assert vo.audio_rel_path is not None
+        cmd.extend(["-i", str(episode_root / vo.audio_rel_path)])
+        vo_inputs.append((input_idx, vo.start, max(0.2, vo.duration), vo.gain_db, vo.duck_field_audio_db))
         input_idx += 1
 
     bgm_input_idx: int | None = None
@@ -309,9 +321,38 @@ def _compose_final(
         v_cur = nxt
 
     a_map = "0:a"
-    if bgm_input_idx is not None and plan.bgm is not None:
-        filter_parts.append(_bgm_filter_expr(plan, f"{bgm_input_idx}:a", "bgm_a"))
-        filter_parts.append("[0:a][bgm_a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a_mix]")
+    audio_mix_labels: list[str] = []
+    if vo_inputs or bgm_input_idx is not None:
+        # Duck field audio during Doubao TTS voiceovers while preserving soft outdoor ambience
+        if vo_inputs:
+            duck_lin = _db_to_linear(min(d for _, _, _, _, d in vo_inputs))
+            cond = "+".join(
+                f"between(t,{max(0.0, st - 0.1):.3f},{st + dur + 0.15:.3f})"
+                for _, st, dur, _, _ in vo_inputs
+            )
+            filter_parts.append(
+                f"[0:a]volume='if(gt({cond},0),{duck_lin},1.0)':eval=frame[field_a]"
+            )
+            audio_mix_labels.append("[field_a]")
+        else:
+            audio_mix_labels.append("[0:a]")
+
+        for k, (vo_i, st, _, gain_db, _) in enumerate(vo_inputs):
+            delay_ms = max(0, int(round(st * 1000)))
+            gain_part = f",volume={gain_db:.1f}dB" if abs(gain_db) >= 0.1 else ""
+            delay_part = f",adelay={delay_ms}|{delay_ms}" if delay_ms > 0 else ""
+            filter_parts.append(
+                f"[{vo_i}:a]aresample=48000,aformat=channel_layouts=stereo{gain_part}{delay_part}[vo_{k}]"
+            )
+            audio_mix_labels.append(f"[vo_{k}]")
+
+        if bgm_input_idx is not None and plan.bgm is not None:
+            filter_parts.append(_bgm_filter_expr(plan, f"{bgm_input_idx}:a", "bgm_a"))
+            audio_mix_labels.append("[bgm_a]")
+
+        filter_parts.append(
+            f"{''.join(audio_mix_labels)}amix=inputs={len(audio_mix_labels)}:duration=first:dropout_transition=0:normalize=0[a_mix]"
+        )
         a_map = "[a_mix]"
 
     cmd.extend(["-filter_complex", ";".join(filter_parts)])

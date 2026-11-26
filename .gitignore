@@ -1,3 +1,8 @@
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
 # Python
 .venv/
 __pycache__/
@@ -12,10 +17,12 @@ build/
 episodes/*/raw/
 episodes/*/work/proxies/
 episodes/*/work/contacts/
+episodes/*/work/tts_cache/
 episodes/*/exports/*.mp4
 episodes/*/exports/*.wav
 episodes/*/exports/adapted/
 episodes/*/exports/overlays/
+episodes/*/exports/voiceovers/
 episodes/*/exports/jianying_draft/
 
 # OS & editor

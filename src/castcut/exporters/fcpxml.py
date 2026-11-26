@@ -110,6 +110,31 @@ def export_fcpxml(
         )
         ET.SubElement(asset, "media-rep", kind="original-media", src=png_path.as_uri())
 
+    vo_asset_ids: dict[str, str] = {}
+    for vo in plan.voiceovers:
+        if not vo.audio_rel_path or vo.duration <= 0:
+            continue
+        vo_path = (episode_root / vo.audio_rel_path).resolve()
+        if not vo_path.exists():
+            continue
+        rid = f"r{next_id}"
+        next_id += 1
+        vo_asset_ids[vo.vo_id] = rid
+        asset = ET.SubElement(
+            resources,
+            "asset",
+            id=rid,
+            name=f"{vo.vo_id}_{vo_path.stem}",
+            start="0s",
+            duration=_fmt_dur(vo.duration, frame_num, frame_den),
+            hasVideo="0",
+            hasAudio="1",
+            audioSources="1",
+            audioChannels="2",
+            audioRate="48000",
+        )
+        ET.SubElement(asset, "media-rep", kind="original-media", src=vo_path.as_uri())
+
     bgm_rid: str | None = None
     if plan.bgm and Path(plan.bgm.path).exists():
         bgm_path = Path(plan.bgm.path).resolve()
@@ -213,14 +238,40 @@ def export_fcpxml(
             duration=_fmt_dur(ov.duration, frame_num, frame_den),
         )
 
-    # Attach BGM track to the first spine clip on lane -1
+    # Attach Doubao TTS voiceovers on lane -1
+    for vo in plan.voiceovers:
+        rid = vo_asset_ids.get(vo.vo_id)
+        if not rid or not spine_elements:
+            continue
+        host = spine_elements[0]
+        for cand in spine_elements:
+            if cand[1] <= vo.start < cand[2]:
+                host = cand
+                break
+        host_el, host_tl_start, _, host_src_start, host_speed = host
+        rel_offset = host_src_start + max(0.0, vo.start - host_tl_start) * host_speed
+        vo_el = ET.SubElement(
+            host_el,
+            "asset-clip",
+            ref=rid,
+            lane="-1",
+            offset=_fmt_time(rel_offset, frame_num, frame_den),
+            name=f"{vo.vo_id}_voiceover",
+            start="0s",
+            duration=_fmt_dur(vo.duration, frame_num, frame_den),
+            role="dialogue.voiceover",
+        )
+        if abs(vo.gain_db) >= 0.1:
+            ET.SubElement(vo_el, "adjust-volume", amount=f"{vo.gain_db:.1f}dB")
+
+    # Attach BGM track to the first spine clip on lane -2 (if voiceovers exist) or -1
     if bgm_rid and plan.bgm and spine_elements:
         first_el, _, _, first_src_start, _ = spine_elements[0]
         bgm_el = ET.SubElement(
             first_el,
             "asset-clip",
             ref=bgm_rid,
-            lane="-1",
+            lane="-2" if vo_asset_ids else "-1",
             offset=_fmt_time(first_src_start, frame_num, frame_den),
             name=Path(plan.bgm.path).stem,
             start="0s",

@@ -142,6 +142,34 @@ def export_jianying_draft(
             }
         )
 
+    vo_segments: list[dict] = []
+    for vo in sorted(plan.voiceovers, key=lambda v: v.start):
+        if not vo.audio_rel_path or vo.duration <= 0:
+            continue
+        vo_path = (episode_root / vo.audio_rel_path).resolve()
+        if not vo_path.exists():
+            continue
+        vo_mat_id = _uid()
+        audio_materials.append(
+            {
+                "id": vo_mat_id,
+                "type": "extract_music",
+                "name": vo_path.stem,
+                "path": str(vo_path),
+                "duration": _us(vo.duration),
+            }
+        )
+        vo_segments.append(
+            {
+                "id": _uid(),
+                "material_id": vo_mat_id,
+                "volume": round(math.pow(10.0, vo.gain_db / 20.0), 3),
+                "source_timerange": {"start": 0, "duration": _us(vo.duration)},
+                "target_timerange": {"start": _us(vo.start), "duration": _us(vo.duration)},
+                "visible": True,
+            }
+        )
+
     if plan.bgm and Path(plan.bgm.path).exists():
         bgm_path = Path(plan.bgm.path).resolve()
         bgm_id = _uid()
@@ -168,6 +196,8 @@ def export_jianying_draft(
     tracks = [
         {"id": _uid(), "type": "video", "attribute": 0, "segments": video_segments},
     ]
+    if vo_segments:
+        tracks.append({"id": _uid(), "type": "audio", "attribute": 0, "segments": vo_segments})
     if bgm_segments:
         tracks.append({"id": _uid(), "type": "audio", "attribute": 0, "segments": bgm_segments})
     if text_segments:

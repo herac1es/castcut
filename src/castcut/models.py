@@ -74,6 +74,8 @@ class ProjectConfig(BaseModel):
     target_species: str = "大口黑鲈"
     water_type: Literal["managed_pond", "open_water", "unknown"] = "managed_pond"
     channel_handle: str = "@路亚知马力"
+    tts_voice: str | None = None
+    tts_context_text: str | None = None
     bgm_path: str | None = None
     bgm_volume_db: float = -18.0
     bgm_duck_db: float = -30.0
@@ -229,6 +231,23 @@ class SubtitleCue(BaseModel):
     start: float
     end: float
     text: str
+    source: Literal["asr", "tts"] = "asr"
+
+
+class VoiceoverCue(BaseModel):
+    """Post-production Doubao TTS voiceover narration placed on Track A2."""
+
+    vo_id: str
+    text: str
+    item_id: str | None = None
+    start: float = 0.0
+    duration: float = 0.0
+    speaker: str | None = None
+    context_text: str | None = None
+    gain_db: float = 0.0
+    duck_field_audio_db: float = -14.0
+    audio_rel_path: str | None = None
+    subtitles: list[SubtitleCue] = Field(default_factory=list)
 
 
 class TimelineClipItem(BaseModel):
@@ -254,6 +273,7 @@ class TimelineClipItem(BaseModel):
     mute_audio: bool = False
     marker_label: str | None = None
     marker_color: Literal["Blue", "Cyan", "Green", "Yellow", "Red", "Purple"] = "Blue"
+    voiceover_text: str | None = None
     note: str = ""
 
     @property
@@ -294,6 +314,7 @@ class EditPlan(BaseModel):
     total_duration: float = 0.0
     items: list[TimelineClipItem] = Field(default_factory=list)
     overlays: list[HudOverlaySpec] = Field(default_factory=list)
+    voiceovers: list[VoiceoverCue] = Field(default_factory=list)
     subtitles: list[SubtitleCue] = Field(default_factory=list)
     bgm: BgmSpec | None = None
     notes: str = ""

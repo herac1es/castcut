@@ -211,13 +211,59 @@ def export_otio(
         }
     )
 
+    # Track A2: Doubao TTS Voiceover narration positioned with exact Gaps
+    a2_vo_children: list[dict] = []
+    vo_cursor = 0.0
+    for vo in sorted(plan.voiceovers, key=lambda v: v.start):
+        if not vo.audio_rel_path or vo.duration <= 0:
+            continue
+        vo_path = (episode_root / vo.audio_rel_path).resolve()
+        if not vo_path.exists():
+            continue
+        if vo.start > vo_cursor + (0.5 / fps):
+            a2_vo_children.append(_gap(vo.start - vo_cursor, fps))
+            vo_cursor = vo.start
+        a2_vo_children.append(
+            {
+                "OTIO_SCHEMA": "Clip.2",
+                "metadata": {
+                    "castcut_voiceover": {
+                        "vo_id": vo.vo_id,
+                        "speaker": vo.speaker,
+                        "text": vo.text,
+                    }
+                },
+                "name": f"{vo.vo_id}_{vo_path.stem}",
+                "source_range": _tr(0.0, vo.duration, fps),
+                "media_reference": _ext_ref(vo_path, vo.duration, fps),
+                "effects": [],
+                "markers": [],
+                "enabled": True,
+            }
+        )
+        vo_cursor += vo.duration
+
+    if a2_vo_children:
+        tracks.append(
+            {
+                "OTIO_SCHEMA": "Track.1",
+                "metadata": {},
+                "name": "A2 Voiceover TTS",
+                "kind": "Audio",
+                "children": a2_vo_children,
+                "effects": [],
+                "markers": [],
+                "enabled": True,
+            }
+        )
+
     if plan.bgm and Path(plan.bgm.path).exists():
         bgm_path = Path(plan.bgm.path).resolve()
         tracks.append(
             {
                 "OTIO_SCHEMA": "Track.1",
                 "metadata": {"ducking_intervals": [d.model_dump() for d in plan.bgm.ducking_intervals]},
-                "name": "A2 BGM",
+                "name": "A3 BGM" if a2_vo_children else "A2 BGM",
                 "kind": "Audio",
                 "children": [
                     {

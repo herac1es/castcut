@@ -30,6 +30,8 @@ from castcut.models import (
 from castcut.planner import build_fine_plan, build_rough_plan
 from castcut.qc import run_qc
 from castcut.renderer import render_episode
+from castcut.tts import DoubaoTtsClient, load_doubao_tts_config
+from castcut.voiceover import synthesize_episode_voiceovers
 from castcut.workspace import (
     EpisodePaths,
     init_episode_workspace,
@@ -85,6 +87,23 @@ def doctor() -> None:
         table.add_row("MCP Server", "OK", "已安装，可运行 `castcut-mcp` 供 Codex / Antigravity 调用")
     except ImportError:
         table.add_row("MCP Server", "OPTIONAL", "未安装（可 `uv sync --extra mcp` 启用）")
+
+    try:
+        tts_cfg = load_doubao_tts_config()
+        if tts_cfg.has_credentials:
+            table.add_row(
+                "豆包语音 TTS",
+                "OK",
+                f"已就绪 ({tts_cfg.auth_mode}, resource={tts_cfg.resource_id}, voice={tts_cfg.voice})",
+            )
+        else:
+            table.add_row(
+                "豆包语音 TTS",
+                "OPTIONAL",
+                "未配置凭据（复制 .env.example 为 .env 并填入 VOLCENGINE_TTS_API_KEY 即可复用 coolbot 豆包语音）",
+            )
+    except ValueError as exc:
+        table.add_row("豆包语音 TTS", "FAIL", str(exc))
 
     console.print(table)
 
@@ -249,6 +268,47 @@ def plan(
         f"({len(ep.items)} 段镜头，画幅 {ep.width}x{ep.height}，预计总时长 {ep.total_duration:.1f}s，"
         f"字幕 {len(ep.subtitles)} 条，HUD 卡片 {len(ep.overlays)} 张)"
     )
+
+
+@app.command()
+def tts(
+    episode_dir: Annotated[Path, typer.Argument(help="单集工作目录")],
+    stage: Annotated[str, typer.Option(help="目标剪辑单：fine 或 rough")] = "fine",
+    speaker: Annotated[str | None, typer.Option(help="临时覆盖豆包音色（如 zh_male_m191_uranus_bigtts）")] = None,
+    context: Annotated[str | None, typer.Option(help="临时覆盖 Seed-TTS 2.0 语气上下文指令")] = None,
+) -> None:
+    """使用火山引擎豆包语音合成 fine_cut.yaml 中的口播旁白，并同步字级字幕与 BGM 闪避。"""
+    plan, count, hits = synthesize_episode_voiceovers(
+        episode_dir,
+        stage=stage,
+        speaker_override=speaker,
+        context_override=context,
+    )
+    if count == 0:
+        console.print(
+            "[yellow]未发现待合成口播[/yellow]：请在 fine_cut.yaml 的 voiceovers 列表或镜头 voiceover_text 中填写文案。"
+        )
+        return
+    console.print(
+        f"[green]豆包 TTS 合成完成[/green]: 共 {count} 条口播（命中缓存 {hits} 条），"
+        f"已更新字幕 {len(plan.subtitles)} 条 -> {EpisodePaths(episode_dir).subtitles_srt}"
+    )
+
+
+@app.command("tts-say")
+def tts_say(
+    text: Annotated[str, typer.Option("--text", "-t", help="要试听合成的口播文本")],
+    out: Annotated[Path, typer.Option("--out", "-o", help="输出 MP3 路径")] = Path("tts_test.mp3"),
+    speaker: Annotated[str | None, typer.Option(help="豆包音色 ID")] = None,
+    context: Annotated[str | None, typer.Option(help="Seed-TTS 2.0 语气指令")] = None,
+) -> None:
+    """单句快速测试豆包语音合成与字幕对齐。"""
+    cfg = load_doubao_tts_config()
+    client = DoubaoTtsClient(cfg)
+    res = client.synthesize(text, out, speaker=speaker, context_text=context)
+    console.print(f"[green]合成成功[/green]: {res.audio_path} ({res.duration_sec:.2f}s, {len(res.subtitles)} 条字幕)")
+    for cue in res.subtitles:
+        console.print(f"  [{cue.start:.2f}-{cue.end:.2f}s] {cue.text}")
 
 
 @app.command()

@@ -72,6 +72,7 @@ description: 路亚钓鱼实拍 Vlog 的全流程 Agent 剪辑技能（挑片、
    uv run castcut plan episodes/<slug> --stage fine
    ```
 2. 审核并润色 `work/fine_cut.yaml`：
+   - **后期豆包口播（可选）**：对风噪大、未开口或需要补充钓法讲解的镜头，在对应镜头写 `voiceover_text`（或在 `voiceovers` 列表指定精确 `start` 与文案），然后执行 `uv run castcut tts episodes/<slug>`（复用 `coolbot` 的 `.env` 豆包语音配置，自动完成多音字纠偏、MP3 合成、字级字幕对齐、内容哈希缓存及 BGM 闪避更新）。
    - **字幕校对**：检查 `subtitles` 是否存在路亚术语误识别（必要时补充到 `knowledge/lure_glossary.yaml`），单条字幕控制在 16–20 字以内。
    - **HUD 透明信息卡（`overlays`）**：确认章节名、拟饵克重/线号（`lure_info`）、上鱼计数（`catch_counter` 如 `中鱼 #1`）准确不遮脸。
    - **BGM 闪避**：若配置了 `bgm_path`，确认人声与刺鱼水花段均覆盖在 `ducking_intervals` 内。

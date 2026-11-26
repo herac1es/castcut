@@ -54,6 +54,10 @@ class EpisodePaths:
         return self.work_dir / "transcripts"
 
     @property
+    def tts_cache_dir(self) -> Path:
+        return self.work_dir / "tts_cache"
+
+    @property
     def media_index_json(self) -> Path:
         return self.work_dir / "media_index.json"
 
@@ -76,6 +80,10 @@ class EpisodePaths:
     @property
     def overlays_dir(self) -> Path:
         return self.exports_dir / "overlays"
+
+    @property
+    def voiceovers_dir(self) -> Path:
+        return self.exports_dir / "voiceovers"
 
     @property
     def rough_preview_mp4(self) -> Path:
@@ -117,8 +125,10 @@ class EpisodePaths:
             self.proxies_dir,
             self.contacts_dir,
             self.transcripts_dir,
+            self.tts_cache_dir,
             self.exports_dir,
             self.overlays_dir,
+            self.voiceovers_dir,
         ):
             d.mkdir(parents=True, exist_ok=True)
 

@@ -19,6 +19,8 @@ from castcut.models import (
 from castcut.planner import build_fine_plan, build_rough_plan
 from castcut.qc import run_qc
 from castcut.renderer import render_episode
+from castcut.tts import load_doubao_tts_config
+from castcut.voiceover import synthesize_episode_voiceovers
 from castcut.workspace import (
     EpisodePaths,
     init_episode_workspace,
@@ -42,15 +44,22 @@ def create_server():
 
     @mcp.tool()
     def castcut_doctor() -> str:
-        """Check local FFmpeg, FFprobe, CJK font, and ASR environment health."""
+        """Check local FFmpeg, FFprobe, CJK font, ASR, and Doubao TTS environment health."""
         ff = resolve_ffmpeg()
         fp = resolve_ffprobe()
+        tts_cfg = load_doubao_tts_config()
         return json.dumps(
             {
                 "ffmpeg": ff.__dict__,
                 "ffprobe": fp.__dict__ if fp else None,
                 "cjk_font": find_cjk_font(),
                 "faster_whisper": faster_whisper_available(),
+                "doubao_tts": {
+                    "configured": tts_cfg.has_credentials,
+                    "auth_mode": tts_cfg.auth_mode,
+                    "resource_id": tts_cfg.resource_id,
+                    "voice": tts_cfg.voice,
+                },
             },
             ensure_ascii=False,
             indent=2,
@@ -173,6 +182,40 @@ def create_server():
                 "item_count": len(plan.items),
                 "subtitle_count": len(plan.subtitles),
                 "overlay_count": len(plan.overlays),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    @mcp.tool()
+    def castcut_synthesize_tts(
+        episode_dir: str,
+        stage: str = "fine",
+        speaker: str | None = None,
+        context_text: str | None = None,
+    ) -> str:
+        """Synthesize voiceover cues in fine_cut.yaml using Volcengine Doubao TTS (coolbot-compatible config)."""
+        plan, count, hits = synthesize_episode_voiceovers(
+            Path(episode_dir),
+            stage=stage,
+            speaker_override=speaker,
+            context_override=context_text,
+        )
+        return json.dumps(
+            {
+                "synthesized_count": count,
+                "cache_hits": hits,
+                "subtitle_count": len(plan.subtitles),
+                "voiceovers": [
+                    {
+                        "vo_id": v.vo_id,
+                        "start": v.start,
+                        "duration": v.duration,
+                        "speaker": v.speaker,
+                        "audio_rel_path": v.audio_rel_path,
+                    }
+                    for v in plan.voiceovers
+                ],
             },
             ensure_ascii=False,
             indent=2,
